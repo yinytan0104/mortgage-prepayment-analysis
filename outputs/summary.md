@@ -69,6 +69,23 @@ Loan-months in parentheses.
 
 Loan-months in parentheses.
 
+## Prediction model: will this loan pay off next month?
+
+Trained on 3,000,000 loan-months through 2025-06, then tested on 2,512,313 loan-months from 2025-07 to 2026-06 that the model never saw.
+
+| Model | AUC | Predicted CPR (test period) | Actual CPR |
+|---|---|---|---|
+| Logistic regression | 0.625 | 13.3% | 10.2% |
+| Gradient boosting | 0.696 | 9.6% | 10.2% |
+
+Most important features (gradient boosting, drop in AUC when scrambled):
+
+1. Refi incentive (0.230)
+2. Loan size (0.010)
+3. Loan-to-value (0.008)
+4. Calendar month (0.008)
+5. Loan age (0.005)
+
 ## Method notes
 
 - CPR = 1 - (1 - SMM)^12, where SMM = full payoffs / loans outstanding that month.

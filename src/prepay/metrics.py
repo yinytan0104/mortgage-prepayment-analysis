@@ -38,7 +38,8 @@ def smm_to_cpr(smm):
 def build_loan_months(orig: pd.DataFrame, perf: pd.DataFrame) -> pd.DataFrame:
     """One row per loan per month the loan was outstanding at the start of the month."""
     lm = perf.merge(
-        orig[["loan_id", "vintage", "orig_rate", "orig_upb", "credit_score", "orig_ltv"]],
+        orig[[c for c in ["loan_id", "vintage", "orig_rate", "orig_upb", "credit_score", "orig_ltv", "orig_dti"]
+              if c in orig.columns]],
         on="loan_id",
         how="inner",
     )

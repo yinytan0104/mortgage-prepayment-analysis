@@ -140,6 +140,25 @@ def write_summary(h: dict, out_dir: Path, synthetic: bool) -> Path:
                 lines.append(f"| {r['bucket']} | {_p(r['cpr_in_money'])} ({r['n_in_money']:,}) "
                              f"| {_p(r['cpr_out_money'])} ({r['n_out_money']:,}) |")
             lines += ["", "Loan-months in parentheses.", ""]
+    m = h.get("model")
+    if m:
+        lines += [
+            "## Prediction model: will this loan pay off next month?",
+            "",
+            f"Trained on {m['n_train']:,} loan-months through {m['cutoff']}, then tested on "
+            f"{m['n_test']:,} loan-months from {m['test_start']} to {m['test_end']} that the model never saw.",
+            "",
+            "| Model | AUC | Predicted CPR (test period) | Actual CPR |",
+            "|---|---|---|---|",
+            f"| Logistic regression | {m['auc_logit']:.3f} | {_p(m['pred_cpr_logit'])} | {_p(m['actual_cpr'])} |",
+            f"| Gradient boosting | {m['auc_gbm']:.3f} | {_p(m['pred_cpr_gbm'])} | {_p(m['actual_cpr'])} |",
+            "",
+            "Most important features (gradient boosting, drop in AUC when scrambled):",
+            "",
+        ]
+        for i, r in m["importance"].head(5).iterrows():
+            lines.append(f"{i + 1}. {r['feature']} ({r['auc_drop']:.3f})")
+        lines.append("")
     lines += [
         "## Method notes",
         "",

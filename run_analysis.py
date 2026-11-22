@@ -26,6 +26,8 @@ def main():
     ap.add_argument("--lag", type=int, default=1, help="months to lag the market rate (default 1)")
     ap.add_argument("--lock-in-threshold", type=float, default=-1.0)
     ap.add_argument("--synthetic", action="store_true", help="use data/synthetic instead of real data")
+    ap.add_argument("--skip-model", action="store_true", help="skip the prediction model (faster)")
+    ap.add_argument("--test-months", type=int, default=12, help="months held out to test the model")
     args = ap.parse_args()
 
     if args.synthetic:
@@ -82,7 +84,20 @@ def main():
     plots.plot_s_curve_by_size(by_size, metrics.SIZE_LABELS, out_dir, note)
     plots.plot_s_curve_by_credit(by_credit, metrics.CREDIT_LABELS, out_dir, note)
 
+    model_results = None
+    if not args.skip_model:
+        print("Training prediction model (a few minutes) ...")
+        from prepay import model
+        model_results = model.train_and_evaluate(lm, test_months=args.test_months)
+        model_results["by_month"].to_csv(tables / "model_by_month.csv", index=False)
+        model_results["by_incentive"].to_csv(tables / "model_by_incentive.csv", index=False)
+        model_results["importance"].to_csv(tables / "model_feature_importance.csv", index=False)
+        plots.plot_model_by_month(model_results["by_month"], out_dir, note)
+        plots.plot_model_by_incentive(model_results["by_incentive"], out_dir, note)
+        plots.plot_feature_importance(model_results["importance"], out_dir, note)
+
     h = report.headline_numbers(lm, vt, li)
+    h["model"] = model_results
     h["rate_buckets"] = rb
     h["market_now"] = market_now
     h["by_size_in_money"] = report.split_in_money(lm, "size_bucket", metrics.SIZE_LABELS)

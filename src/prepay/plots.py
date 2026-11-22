@@ -155,3 +155,43 @@ def plot_s_curve_by_size(t, order, out_dir: Path, note=None) -> Path:
 def plot_s_curve_by_credit(t, order, out_dir: Path, note=None) -> Path:
     return _plot_split_s_curve(t, "credit_bucket", order, "Same incentive, different credit scores",
                                "08_s_curve_by_credit_score.png", out_dir, note)
+
+
+def plot_model_by_month(bm: pd.DataFrame, out_dir: Path, note=None) -> Path:
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    t = bm["period"].dt.to_timestamp()
+    ax.plot(t, bm["actual_cpr"], color="#222", lw=2.4, marker="o", ms=4, label="Actual")
+    ax.plot(t, bm["pred_cpr_gbm"], color=COLORS[1], lw=2, marker="o", ms=4, label="Gradient boosting")
+    ax.plot(t, bm["pred_cpr_logit"], color=COLORS[0], lw=1.5, ls="--", label="Logistic regression")
+    _pct(ax)
+    ax.set_ylabel("Prepayment speed (CPR)")
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0, decimals=1))
+    ax.set_title("Out-of-time test: predicted vs actual speed, month by month")
+    ax.legend(frameon=False)
+    return _save(fig, out_dir, "09_model_predicted_vs_actual.png", note)
+
+
+def plot_model_by_incentive(bi: pd.DataFrame, out_dir: Path, note=None) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 4.6))
+    ax.plot(bi["incentive_mid"], bi["actual_cpr"], color="#222", lw=2.4, marker="o", ms=5, label="Actual")
+    ax.plot(bi["incentive_mid"], bi["pred_cpr_gbm"], color=COLORS[1], lw=2, marker="o", ms=4,
+            label="Gradient boosting")
+    ax.plot(bi["incentive_mid"], bi["pred_cpr_logit"], color=COLORS[0], lw=1.5, ls="--",
+            label="Logistic regression")
+    ax.axvline(0, color="#999", lw=1, ls=":")
+    _pct(ax)
+    ax.set_xlabel("Refi incentive (% points)")
+    ax.set_ylabel("Prepayment speed (CPR)")
+    ax.set_title("Out-of-time test: does the model get the S-curve right?")
+    ax.legend(frameon=False)
+    return _save(fig, out_dir, "10_model_s_curve.png", note)
+
+
+def plot_feature_importance(imp: pd.DataFrame, out_dir: Path, note=None) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 4.4))
+    d = imp.iloc[::-1]
+    ax.barh(d["feature"], d["auc_drop"], color=COLORS[0])
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel("Drop in AUC when this feature is scrambled (bigger = more important)")
+    ax.set_title("What drives the prediction?")
+    return _save(fig, out_dir, "11_feature_importance.png", note)

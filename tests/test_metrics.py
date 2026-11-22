@@ -104,3 +104,27 @@ def test_add_buckets():
     assert list(b["rate_bucket"]) == [2.5, 3.0, 6.5]
     assert list(b["size_bucket"]) == ["Under $200K", "$200K to $400K", "$400K+"]
     assert list(b["credit_bucket"]) == ["Under 700", "700 to 759", "760+"]
+
+
+def test_model_learns_incentive():
+    from prepay import model
+
+    rng = np.random.default_rng(1)
+    n = 60_000
+    periods = pd.period_range("2022-01", periods=24, freq="M")
+    inc = rng.uniform(-3, 3, n)
+    p = 0.002 + 0.03 / (1 + np.exp(-3 * (inc - 0.6)))
+    lm = pd.DataFrame({
+        "period": pd.PeriodIndex(rng.choice(periods, n), freq="M"),
+        "incentive": inc,
+        "loan_age": rng.integers(1, 60, n),
+        "note_rate": rng.uniform(3, 7, n),
+        "orig_upb": rng.uniform(1e5, 6e5, n),
+        "credit_score": rng.uniform(620, 820, n),
+        "orig_ltv": rng.uniform(50, 95, n),
+        "orig_dti": rng.uniform(15, 45, n),
+        "prepaid": (rng.random(n) < p).astype(int),
+    })
+    r = model.train_and_evaluate(lm, test_months=6)
+    assert r["auc_gbm"] > 0.7
+    assert r["importance"].iloc[0]["feature"] == "Refi incentive"

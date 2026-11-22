@@ -26,6 +26,11 @@ Based on 300,000 Freddie Mac loans made from 2019 to 2024, tracked through June 
 - **Big loans refinance about twice as fast.** When borrowers were 1+ point in the money, loans of **$400K+ prepaid at 44.7% CPR vs 22.5%** for loans under $200K. Refinancing has fixed costs, so it saves a big loan far more dollars. This is the idea behind "low loan balance" MBS pools, which investors value because they prepay slower.
 - **Better credit, faster refis.** In the money, borrowers with **760+ credit scores prepaid at 37.1%** vs **24.6%** for those under 700, likely because strong credit makes it easier to qualify for a new loan.
 
+- **The prediction model holds up on data it never saw.** Trained through June 2025 and tested on the next 12 months (2.5 million loan-months), gradient boosting predicted an overall **9.6% CPR vs 10.2% actual**, and caught the March 2026 spike almost exactly (**13.0% predicted vs 12.9% actual**). AUC was **0.70**, vs **0.63** for logistic regression.
+- **A straight-line model can't capture the S-curve.** Logistic regression overpredicted speeds for borrowers with no reason to refinance and landed at 13.3% overall. Gradient boosting matched both the flat part of the curve and the steep jump.
+- **Refi incentive is by far the biggest driver** of the prediction, followed by loan size and loan-to-value, which matches the patterns above.
+- **Where it missed:** it underpredicted the October 2025 spike (13.7% actual vs 9.4% predicted), when rates dropped quickly. Features for how fast rates are moving and for burnout are the next step.
+
 *Note: the seasoning chart mixes loan age with timing (many young loans in this sample were young during the 2020 refi boom), so treat it as a rough picture.*
 
 ## Charts
@@ -36,6 +41,13 @@ Based on 300,000 Freddie Mac loans made from 2019 to 2024, tracked through June 
 | ![Lock-in](outputs/04_lock_in.png) | ![Speed by loan rate](outputs/06_cpr_by_loan_rate.png) |
 | ![S-curve by loan size](outputs/07_s_curve_by_loan_size.png) | ![S-curve by credit score](outputs/08_s_curve_by_credit_score.png) |
 | ![Seasoning](outputs/05_seasoning.png) | |
+
+### Prediction model
+
+| | |
+|---|---|
+| ![Predicted vs actual by month](outputs/09_model_predicted_vs_actual.png) | ![Predicted vs actual S-curve](outputs/10_model_s_curve.png) |
+| ![Feature importance](outputs/11_feature_importance.png) | |
 
 ## Key terms
 
@@ -74,6 +86,18 @@ python run_analysis.py --synthetic      # writes to outputs_synthetic/
 
 Run the tests with `pytest`.
 
+## Prediction model
+
+**Question:** given what's known at the start of a month, will this loan pay off by the end of it?
+
+- **Features:** refi incentive, loan age, loan rate, loan size, credit score, loan-to-value, debt-to-income, and calendar month (home sales are seasonal)
+- **Models:** logistic regression as a simple baseline, and gradient boosting (scikit-learn `HistGradientBoostingClassifier`) to capture the S-curve shape and interactions like big loans reacting more to the same incentive
+- **Out-of-time test:** trained on all months except the last 12, then scored on those last 12 months, which the model never saw. That's how a prepayment model is used in practice and a tougher test than a random split.
+- **Scoring:** AUC (how well it ranks loans that pay off above ones that don't), plus predicted vs actual CPR month by month and across the S-curve, since getting the overall speed right is what matters for MBS
+- **Feature importance:** permutation importance, which measures how much AUC drops when each feature is scrambled
+
+Results are in `outputs/summary.md`. Skip the model with `python run_analysis.py --skip-model` for a faster run.
+
 ## Method
 
 1. Load each loan's origination record and monthly payment history.
@@ -99,6 +123,7 @@ src/prepay/
     rates.py                 read the FRED mortgage rate CSV
     metrics.py               SMM, CPR, refi incentive, S-curve, lock-in, seasoning
     plots.py                 charts
+    model.py                 prediction model: will a loan pay off next month?
     report.py                headline numbers and summary.md
 scripts/make_synthetic_data.py   fake data for testing
 tests/                       unit tests for the math
@@ -110,5 +135,6 @@ outputs/                     charts, tables, summary
 
 - Measure burnout: do loans that skipped the 2021 refi wave stay slow?
 - Add partial prepayments using month-to-month balance changes
-- Fit a simple prepayment model (logistic regression or gradient boosting) on incentive, loan age, and borrower features
+- Add burnout features (how long a loan has stayed in the money without refinancing)
+- Try XGBoost or LightGBM and tune the model
 - Build an interactive dashboard in Power BI or Streamlit
