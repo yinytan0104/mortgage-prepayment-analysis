@@ -1,0 +1,14 @@
+# Raw data (Freddie Mac terms of use, and it's big)
+data/raw/*
+!data/raw/.gitkeep
+data/synthetic/
+outputs_synthetic/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+.DS_Store
