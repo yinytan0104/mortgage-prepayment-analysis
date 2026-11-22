@@ -95,3 +95,12 @@ def test_s_curve_is_increasing_on_synthetic_shape():
     lm["prepaid_upb"] = lm["prepaid"] * 1.0
     sc = metrics.s_curve(lm, bin_width=1.0, lo=-3, hi=3, min_loans=100)
     assert sc["cpr"].iloc[-1] > sc["cpr"].iloc[0] * 3
+
+
+def test_add_buckets():
+    lm = pd.DataFrame({"note_rate": [2.99, 3.0, 6.74], "orig_upb": [150_000, 200_000, 500_000],
+                       "credit_score": [690, 700, 790]})
+    b = metrics.add_buckets(lm)
+    assert list(b["rate_bucket"]) == [2.5, 3.0, 6.5]
+    assert list(b["size_bucket"]) == ["Under $200K", "$200K to $400K", "$400K+"]
+    assert list(b["credit_bucket"]) == ["Under 700", "700 to 759", "760+"]

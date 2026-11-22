@@ -47,6 +47,7 @@ def main():
     print("Building loan-month table ...")
     lm = metrics.build_loan_months(orig, perf)
     lm = metrics.add_incentive(lm, market, lag_months=args.lag)
+    lm = metrics.add_buckets(lm)
 
     print("Calculating prepayment speeds ...")
     vt = metrics.monthly_cpr_by_vintage(lm)
@@ -54,6 +55,9 @@ def main():
     scv = metrics.s_curve(lm, by_vintage=True, min_loans=300)
     sa = metrics.cpr_by_loan_age(lm)
     li = metrics.lock_in_share(lm, threshold=args.lock_in_threshold)
+    rb = metrics.cpr_by_rate_bucket(lm)
+    by_size = metrics.s_curve_by(lm, "size_bucket")
+    by_credit = metrics.s_curve_by(lm, "credit_bucket")
 
     tables = out_dir / "tables"
     tables.mkdir(exist_ok=True)
@@ -62,6 +66,9 @@ def main():
     scv.to_csv(tables / "s_curve_by_vintage.csv", index=False)
     sa.to_csv(tables / "cpr_by_loan_age.csv", index=False)
     li.to_csv(tables / "lock_in_share.csv", index=False)
+    rb.to_csv(tables / "cpr_by_loan_rate.csv", index=False)
+    by_size.to_csv(tables / "s_curve_by_loan_size.csv", index=False)
+    by_credit.to_csv(tables / "s_curve_by_credit_score.csv", index=False)
 
     print("Drawing charts ...")
     plots.plot_cpr_over_time(vt, market, out_dir, note)
@@ -69,8 +76,17 @@ def main():
     plots.plot_s_curve_by_vintage(scv, out_dir, note)
     plots.plot_lock_in(li, out_dir, args.lock_in_threshold, note)
     plots.plot_seasoning(sa, out_dir, note)
+    last_period = lm["period"].max()
+    market_now = market.get(last_period, market.iloc[-1])
+    plots.plot_cpr_by_rate(rb, market_now, out_dir, note)
+    plots.plot_s_curve_by_size(by_size, metrics.SIZE_LABELS, out_dir, note)
+    plots.plot_s_curve_by_credit(by_credit, metrics.CREDIT_LABELS, out_dir, note)
 
     h = report.headline_numbers(lm, vt, li)
+    h["rate_buckets"] = rb
+    h["market_now"] = market_now
+    h["by_size_in_money"] = report.split_in_money(lm, "size_bucket", metrics.SIZE_LABELS)
+    h["by_credit_in_money"] = report.split_in_money(lm, "credit_bucket", metrics.CREDIT_LABELS)
     h["by_vintage"].to_csv(tables / "vintage_summary.csv", index=False)
     path = report.write_summary(h, out_dir, synthetic=args.synthetic)
     print(f"\nDone. Charts, tables, and {path.name} are in {out_dir}")

@@ -16,6 +16,19 @@ def _pooled_cpr(lm: pd.DataFrame, mask) -> tuple[float, int]:
     return smm_to_cpr(d["prepaid"].sum() / len(d)), len(d)
 
 
+def split_in_money(lm: pd.DataFrame, col: str, order) -> pd.DataFrame:
+    """CPR for borrowers 1+ pt in the money vs 1+ pt out of the money, per bucket."""
+    rows = []
+    has = lm["incentive"].notna()
+    for k in order:
+        m = has & (lm[col] == k)
+        cin, nin = _pooled_cpr(lm, m & (lm["incentive"] >= 1.0))
+        cout, nout = _pooled_cpr(lm, m & (lm["incentive"] <= -1.0))
+        rows.append({"bucket": k, "cpr_in_money": cin, "n_in_money": nin,
+                     "cpr_out_money": cout, "n_out_money": nout})
+    return pd.DataFrame(rows)
+
+
 def headline_numbers(lm: pd.DataFrame, vt: pd.DataFrame, li: pd.DataFrame) -> dict:
     out = {}
     out["n_loans"] = lm["loan_id"].nunique()
@@ -102,6 +115,31 @@ def write_summary(h: dict, out_dir: Path, synthetic: bool) -> Path:
             f"- Peak: **{_p(h['lock_in_peak'][1])}** in {h['lock_in_peak'][0]}",
             "",
         ]
+    if "rate_buckets" in h and len(h["rate_buckets"]):
+        rb = h["rate_buckets"]
+        lines += [
+            "## Prepayment speed by loan rate (last 12 months)",
+            "",
+            f"Window: {rb['window'].iloc[0]}. Market 30-yr rate in the latest month: about {h['market_now']:.2f}%.",
+            "",
+            "| Loan rate bucket | CPR | Loan-months |",
+            "|---|---|---|",
+        ]
+        for _, r in rb.iterrows():
+            lines.append(f"| {r['rate_bucket']:.1f}% to {r['rate_bucket'] + 0.49:.2f}% | {_p(r['cpr'])} | {r['loans']:,} |")
+        lines.append("")
+    for key, title in [("by_size_in_money", "loan size"), ("by_credit_in_money", "credit score")]:
+        if key in h:
+            lines += [
+                f"## Does the incentive effect change by {title}?",
+                "",
+                f"| {title.capitalize()} | CPR, 1+ pt in the money | CPR, 1+ pt out of the money |",
+                "|---|---|---|",
+            ]
+            for _, r in h[key].iterrows():
+                lines.append(f"| {r['bucket']} | {_p(r['cpr_in_money'])} ({r['n_in_money']:,}) "
+                             f"| {_p(r['cpr_out_money'])} ({r['n_out_money']:,}) |")
+            lines += ["", "Loan-months in parentheses.", ""]
     lines += [
         "## Method notes",
         "",
@@ -109,6 +147,7 @@ def write_summary(h: dict, out_dir: Path, synthetic: bool) -> Path:
         "- Counts full payoffs only (zero balance code 01). Partial prepayments are not included.",
         "- Payoffs include refinances and home sales. The data doesn't split them.",
         "- Refi incentive = loan rate minus the Freddie Mac PMMS 30-year rate, lagged one month.",
+        "- Loan rate buckets use the loan's note rate. MBS pool coupons run about 0.5 to 0.75 pt lower.",
         "- Source: Freddie Mac Single-Family Loan-Level Dataset (sample files) and PMMS via FRED.",
         "",
     ]

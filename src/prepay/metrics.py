@@ -121,3 +121,49 @@ def lock_in_share(lm: pd.DataFrame, threshold: float = -1.0) -> pd.DataFrame:
         }
     )
     return out.reset_index()
+
+
+# ---------------------------------------------------------------------------
+# Borrower and loan buckets
+# ---------------------------------------------------------------------------
+
+SIZE_LABELS = ["Under $200K", "$200K to $400K", "$400K+"]
+CREDIT_LABELS = ["Under 700", "700 to 759", "760+"]
+
+
+def add_buckets(lm: pd.DataFrame) -> pd.DataFrame:
+    """Add loan-rate ('coupon'), loan-size and credit-score buckets.
+
+    Rate buckets are half a point wide and named by their lower edge, so
+    "6.5%" means loans with a rate from 6.50% to 6.99%. Note: an MBS coupon is
+    usually about 0.5 to 0.75 pt below the loans' note rate (servicing and
+    guarantee fees come out first), so these are loan-rate buckets, not
+    exact pool coupons.
+    """
+    out = lm.copy()
+    out["rate_bucket"] = np.floor(out["note_rate"] * 2) / 2
+    out["size_bucket"] = pd.cut(out["orig_upb"], [0, 200_000, 400_000, np.inf],
+                                labels=SIZE_LABELS, right=False)
+    out["credit_bucket"] = pd.cut(out["credit_score"], [0, 700, 760, 1000],
+                                  labels=CREDIT_LABELS, right=False)
+    return out
+
+
+def cpr_by_rate_bucket(lm: pd.DataFrame, last_n_months: int = 12, min_loans: int = 2000) -> pd.DataFrame:
+    """CPR by loan-rate bucket over the most recent months. The trader's view."""
+    end = lm["period"].max()
+    recent = lm[lm["period"] > end - last_n_months]
+    t = cpr_by(recent, "rate_bucket")
+    t = t[t["loans"] >= min_loans].copy()
+    t["window"] = f"{end - last_n_months + 1} to {end}"
+    return t
+
+
+def s_curve_by(lm: pd.DataFrame, col: str, bin_width: float = 0.5, lo: float = -3.0, hi: float = 3.0,
+               min_loans: int = 1000) -> pd.DataFrame:
+    """S-curve split by another column, e.g. size_bucket or credit_bucket."""
+    d = lm.dropna(subset=["incentive", col]).copy()
+    x = d["incentive"].clip(lo, hi - 1e-9)
+    d["incentive_mid"] = (np.floor((x - lo) / bin_width) * bin_width + lo + bin_width / 2).round(3)
+    t = cpr_by(d, [col, "incentive_mid"])
+    return t[t["loans"] >= min_loans]

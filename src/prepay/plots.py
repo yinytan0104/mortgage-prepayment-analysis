@@ -23,6 +23,7 @@ plt.rcParams.update(
         "axes.titleweight": "bold",
         "axes.titlesize": 12,
         "font.size": 10,
+        "text.parse_math": False,
     }
 )
 
@@ -109,3 +110,48 @@ def plot_seasoning(sa: pd.DataFrame, out_dir: Path, note=None) -> Path:
     ax.set_ylabel("Prepayment speed (CPR)")
     ax.set_title("Seasoning: speeds by loan age")
     return _save(fig, out_dir, "05_seasoning.png", note)
+
+
+def plot_cpr_by_rate(rb: pd.DataFrame, market_now: float | None, out_dir: Path, note=None) -> Path:
+    fig, ax = plt.subplots(figsize=(9, 4.6))
+    labels = [f"{b:.1f}%" for b in rb["rate_bucket"]]
+    colors = [COLORS[1] if (market_now is not None and b + 0.25 >= market_now + 1.0) else COLORS[0]
+              for b in rb["rate_bucket"]]
+    bars = ax.bar(labels, rb["cpr"], color=colors, width=0.7)
+    for bar, v in zip(bars, rb["cpr"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, v + 0.004, f"{v:.0%}", ha="center", fontsize=8.5)
+    _pct(ax)
+    ax.grid(axis="x", visible=False)
+    ax.set_xlabel("Loan rate bucket (e.g. 6.5% = 6.50% to 6.99%)")
+    ax.set_ylabel("Prepayment speed (CPR)")
+    title = "Prepayment speed by loan rate, last 12 months"
+    if market_now is not None:
+        title += f"\n(orange = at least 1 pt above today's ~{market_now:.2f}% market rate)"
+    ax.set_title(title)
+    return _save(fig, out_dir, "06_cpr_by_loan_rate.png", note)
+
+
+def _plot_split_s_curve(t: pd.DataFrame, col: str, order, title: str, name: str, out_dir: Path, note=None) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    for i, k in enumerate(order):
+        g = t[t[col] == k]
+        if len(g):
+            ax.plot(g["incentive_mid"], g["cpr"], marker="o", ms=4, lw=2,
+                    color=[COLORS[3], COLORS[1], COLORS[0]][i % 3], label=k)
+    ax.axvline(0, color="#999", lw=1, ls=":")
+    _pct(ax)
+    ax.set_xlabel("Refi incentive (loan rate minus market rate, % points)")
+    ax.set_ylabel("Prepayment speed (CPR)")
+    ax.set_title(title)
+    ax.legend(frameon=False)
+    return _save(fig, out_dir, name, note)
+
+
+def plot_s_curve_by_size(t, order, out_dir: Path, note=None) -> Path:
+    return _plot_split_s_curve(t, "size_bucket", order, "Same incentive, different loan sizes",
+                               "07_s_curve_by_loan_size.png", out_dir, note)
+
+
+def plot_s_curve_by_credit(t, order, out_dir: Path, note=None) -> Path:
+    return _plot_split_s_curve(t, "credit_bucket", order, "Same incentive, different credit scores",
+                               "08_s_curve_by_credit_score.png", out_dir, note)

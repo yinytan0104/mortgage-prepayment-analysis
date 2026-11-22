@@ -10,6 +10,8 @@ This project uses Freddie Mac's public loan-level data to measure prepayment spe
 2. **Rate lock-in.** After rates shot up in 2022, most borrowers were sitting on rates far below the market, and prepayments slowed way down.
 3. **Seasoning.** Brand new loans prepay slowly, and speeds ramp up as loans age.
 
+It also looks at prepayments the way an MBS desk does: by **loan rate bucket** (close to how pools are grouped by coupon), and whether the same refi incentive gets a different reaction depending on **loan size** and **credit score**.
+
 ## Key findings
 
 Based on 300,000 Freddie Mac loans made from 2019 to 2024, tracked through June 2026.
@@ -20,6 +22,10 @@ Based on 300,000 Freddie Mac loans made from 2019 to 2024, tracked through June 
 - **The cheapest loans barely move.** 2021 loans (avg rate 2.97%) have prepaid at just **4.5% CPR** over their life. With almost no way to refinance lower, those payoffs are likely mostly home sales.
 - **Newer, pricier loans are now the fast ones.** 2023 and 2024 loans (avg rate about 6.7%) ran at about **16% CPR** over the last 12 months, and jumped to around **23%** when rates dipped toward 6%.
 
+- **Higher-rate loans are where the action is.** Over the last 12 months, loans under 5% prepaid at only 4 to 7% CPR, while loans at 7% to 7.49% ran at **23%** and loans at 8.5% and up at **31%**, about **5x faster** than 3% loans.
+- **Big loans refinance about twice as fast.** When borrowers were 1+ point in the money, loans of **$400K+ prepaid at 44.7% CPR vs 22.5%** for loans under $200K. Refinancing has fixed costs, so it saves a big loan far more dollars. This is the idea behind "low loan balance" MBS pools, which investors value because they prepay slower.
+- **Better credit, faster refis.** In the money, borrowers with **760+ credit scores prepaid at 37.1%** vs **24.6%** for those under 700, likely because strong credit makes it easier to qualify for a new loan.
+
 *Note: the seasoning chart mixes loan age with timing (many young loans in this sample were young during the 2020 refi boom), so treat it as a rough picture.*
 
 ## Charts
@@ -27,7 +33,9 @@ Based on 300,000 Freddie Mac loans made from 2019 to 2024, tracked through June 
 | | |
 |---|---|
 | ![CPR over time](outputs/01_cpr_over_time.png) | ![S-curve](outputs/02_s_curve.png) |
-| ![Lock-in](outputs/04_lock_in.png) | ![Seasoning](outputs/05_seasoning.png) |
+| ![Lock-in](outputs/04_lock_in.png) | ![Speed by loan rate](outputs/06_cpr_by_loan_rate.png) |
+| ![S-curve by loan size](outputs/07_s_curve_by_loan_size.png) | ![S-curve by credit score](outputs/08_s_curve_by_credit_score.png) |
+| ![Seasoning](outputs/05_seasoning.png) | |
 
 ## Key terms
 
@@ -73,12 +81,14 @@ Run the tests with `pytest`.
 3. **SMM** = payoffs / loans outstanding that month. **CPR** = 1 - (1 - SMM)^12.
 4. **Refi incentive** = the loan's rate minus the average 30-year market rate from the month before (refinances take a few weeks to close).
 5. Group by loan year, month, incentive bucket (0.25 point wide), and loan age.
+6. Bucket loans by note rate (0.5 point wide), original loan size (under $200K, $200K to $400K, $400K+), and credit score (under 700, 700 to 759, 760+).
 
 **Limitations**
 
 - Only full payoffs are counted, not partial extra payments, so these CPRs run a bit lower than official agency numbers.
 - Payoffs include both refinances and home sales. The data doesn't say which is which.
 - The sample files are a random slice of Freddie Mac loans, not the full dataset.
+- Loan rate buckets use each loan's note rate. Actual MBS pool coupons run about 0.5 to 0.75 point lower because servicing and guarantee fees come out first.
 
 ## Project structure
 
@@ -98,7 +108,7 @@ outputs/                     charts, tables, summary
 
 ## Ideas for next steps
 
-- Split results by credit score, loan size, or state
+- Measure burnout: do loans that skipped the 2021 refi wave stay slow?
 - Add partial prepayments using month-to-month balance changes
 - Fit a simple prepayment model (logistic regression or gradient boosting) on incentive, loan age, and borrower features
 - Build an interactive dashboard in Power BI or Streamlit
